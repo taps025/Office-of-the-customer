@@ -432,10 +432,11 @@ def render_dashboard(df: pd.DataFrame):
     else:
         st.info("No data for the current filters.")
 
-    # ----- Edit section -----
-    if display_df.empty:
-        if client_code_input:
-            st.warning("No client found with that code.")
+    # ----- Edit section (show only when client code is entered) -----
+    if not client_code_input:
+        pass
+    elif display_df.empty:
+        st.warning("No client found with that code.")
     else:
         st.markdown("### Edit Client Details")
         editable_cols = [c for c in display_df.columns if c not in ["CLIENT CODE", "CLIENT NAME"]]
@@ -677,6 +678,12 @@ if route == "engagement":
     render_engagement(df)
 else:
     render_dashboard(df)
+
+
+
+
+
+
 
 
 
