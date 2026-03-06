@@ -482,6 +482,18 @@ def render_engagement(df_for_clients: pd.DataFrame):
 
     # Client options from main data (autocomplete)
     client_options = sorted(df_for_clients["CLIENT NAME"].dropna().unique().tolist()) if not df_for_clients.empty else []
+    facilitator_options = []
+    if not df_for_clients.empty and "ACCOUNT HOLDER" in df_for_clients.columns:
+        facilitator_options = sorted(
+            df_for_clients["ACCOUNT HOLDER"]
+            .dropna()
+            .astype(str)
+            .str.strip()
+            .replace("", pd.NA)
+            .dropna()
+            .unique()
+            .tolist()
+        )
 
     # --- Add Engagement form ---
     with st.form(key="engagement_form", clear_on_submit=True):
@@ -489,7 +501,15 @@ def render_engagement(df_for_clients: pd.DataFrame):
         c1, c2 = st.columns(2)
         with c1:
             client_name = st.selectbox("Client Name", options=client_options, index=None, placeholder="Select client...")
-            facilitator = st.text_input("Facilitator", value="")
+            if facilitator_options:
+                facilitator = st.selectbox(
+                    "Facilitator",
+                    options=facilitator_options,
+                    index=None,
+                    placeholder="Select account holder..."
+                )
+            else:
+                facilitator = st.text_input("Facilitator", value="")
             dtype = st.selectbox("Engagement Type (optional)", options=["", "Call", "Meeting", "Presentation", "Site Visit", "Other"])
         with c2:
             dt = st.date_input("Date of Engagement", value=date.today())
@@ -499,12 +519,12 @@ def render_engagement(df_for_clients: pd.DataFrame):
         if submitted:
             if not client_name:
                 st.error("Please select a Client Name.")
-            elif not facilitator.strip():
+            elif not (facilitator or "").strip():
                 st.error("Please enter a Facilitator.")
             else:
                 ok = save_engagement(
                     client_name=client_name,
-                    facilitator=facilitator.strip(),
+                    facilitator=(facilitator or "").strip(),
                     facilitator_email=facilitator_email.strip(),
                     dt=dt,
                     etype=dtype,
@@ -627,6 +647,11 @@ if route == "engagement":
     render_engagement(df)
 else:
     render_dashboard(df)
+
+
+
+
+
 
 
 
