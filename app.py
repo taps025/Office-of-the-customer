@@ -408,7 +408,12 @@ def render_dashboard(df: pd.DataFrame):
 
     # Display table
     def highlight_cross_sell(val):
-        return "color: red; font-weight: bold;" if str(val).strip().lower() == "cross-sell" else ""
+        v = str(val).strip().lower()
+        if v == "cross-sell":
+            return "color: red; font-weight: bold;"
+        if v in {"cross-sell complete", "cross sell complete"}:
+            return "color: #16a34a; font-weight: bold;"
+        return ""
 
     if not display_table_df.empty:
         styled_df = display_table_df.style.applymap(highlight_cross_sell).hide(axis="index")
@@ -427,51 +432,76 @@ def render_dashboard(df: pd.DataFrame):
     else:
         st.info("No data for the current filters.")
 
-    # ----- Edit section (robust API response handling) -----
-    if client_code_input:
-        if display_df.empty:
+    # ----- Edit section -----
+    if display_df.empty:
+        if client_code_input:
             st.warning("No client found with that code.")
-        else:
-            st.markdown("### Edit Client Details")
-            editable_cols = [c for c in display_df.columns if c not in ["CLIENT CODE", "CLIENT NAME"]]
-            selected_col = st.selectbox("Select Column to Edit", options=editable_cols)
-            new_value = st.selectbox("Select New Value", options=["Cross-Sell", "Shared Client"])
-            if st.button("Apply Change"):
-                try:
-                    if not os.path.exists(DASHBOARD_DATA_FILE):
-                        st.error(f"Dashboard data file not found: {DASHBOARD_DATA_FILE}")
-                        return
+    else:
+        st.markdown("### Edit Client Details")
+        editable_cols = [c for c in display_df.columns if c not in ["CLIENT CODE", "CLIENT NAME"]]
+        selected_col = st.selectbox("Select Column to Edit", options=editable_cols)
+        new_value = st.selectbox("Select New Value", options=["Cross-Sell", "Shared Client", "Cross-sell Complete"])
 
-                    all_sheets = pd.read_excel(DASHBOARD_DATA_FILE, sheet_name=None)
-                    if sheet_filter not in all_sheets:
-                        st.error(f"Department sheet not found in Excel: {sheet_filter}")
-                        return
+        client_picker_df = (
+            display_df[["CLIENT CODE", "CLIENT NAME"]]
+            .dropna(subset=["CLIENT CODE"])
+            .drop_duplicates()
+            .copy()
+        )
+        client_picker_df["__label"] = (
+            client_picker_df["CLIENT CODE"].astype(str).str.strip() +
+            " | " +
+            client_picker_df["CLIENT NAME"].fillna("").astype(str).str.strip()
+        )
+        selected_client_label = st.selectbox(
+            "Select Client to Update",
+            options=client_picker_df["__label"].tolist(),
+            index=0,
+            help="Pick a client directly instead of typing the client code."
+        )
+        selected_client_code = ""
+        if selected_client_label:
+            selected_client_code = selected_client_label.split(" | ", 1)[0].strip()
 
-                    sheet_df = all_sheets[sheet_filter].copy()
-                    if "CLIENT CODE" not in sheet_df.columns:
-                        st.error("Column not found in Excel source: CLIENT CODE")
-                        return
-                    if selected_col not in sheet_df.columns:
-                        st.error(f"Column not found in Excel source: {selected_col}")
-                        return
+        if st.button("Apply Change"):
+            try:
+                if not selected_client_code:
+                    st.error("Please select a client to update.")
+                    return
+                if not os.path.exists(DASHBOARD_DATA_FILE):
+                    st.error(f"Dashboard data file not found: {DASHBOARD_DATA_FILE}")
+                    return
 
-                    code_series = sheet_df["CLIENT CODE"].astype(str).str.strip().str.lower()
-                    mask = code_series == client_code_input.strip().lower()
-                    if not mask.any():
-                        st.error("No matching client found in the selected department sheet.")
-                        return
+                all_sheets = pd.read_excel(DASHBOARD_DATA_FILE, sheet_name=None)
+                if sheet_filter not in all_sheets:
+                    st.error(f"Department sheet not found in Excel: {sheet_filter}")
+                    return
 
-                    sheet_df.loc[mask, selected_col] = new_value
-                    all_sheets[sheet_filter] = sheet_df
-                    with pd.ExcelWriter(DASHBOARD_DATA_FILE, engine="openpyxl") as writer:
-                        for sn, sdf in all_sheets.items():
-                            sdf.to_excel(writer, index=False, sheet_name=sn)
-                    st.success("Updated successfully.")
-                    time.sleep(1)
-                    st.rerun()
-                except Exception as e:
-                    st.error("Unexpected error while updating Excel.")
-                    st.caption(str(e))
+                sheet_df = all_sheets[sheet_filter].copy()
+                if "CLIENT CODE" not in sheet_df.columns:
+                    st.error("Column not found in Excel source: CLIENT CODE")
+                    return
+                if selected_col not in sheet_df.columns:
+                    st.error(f"Column not found in Excel source: {selected_col}")
+                    return
+
+                code_series = sheet_df["CLIENT CODE"].astype(str).str.strip().str.lower()
+                mask = code_series == selected_client_code.lower()
+                if not mask.any():
+                    st.error("No matching client found in the selected department sheet.")
+                    return
+
+                sheet_df.loc[mask, selected_col] = new_value
+                all_sheets[sheet_filter] = sheet_df
+                with pd.ExcelWriter(DASHBOARD_DATA_FILE, engine="openpyxl") as writer:
+                    for sn, sdf in all_sheets.items():
+                        sdf.to_excel(writer, index=False, sheet_name=sn)
+                st.success("Updated successfully.")
+                time.sleep(1)
+                st.rerun()
+            except Exception as e:
+                st.error("Unexpected error while updating Excel.")
+                st.caption(str(e))
 
 # -------------------------------------------------
 # ENGAGEMENT VIEW (Inputs + Editable Status; ID hidden)
@@ -540,7 +570,7 @@ def render_engagement(df_for_clients: pd.DataFrame):
     eng_df = load_engagements()
     if eng_df.empty:
         st.info("No engagement entries yet.")
-        if st.button("⬅️ Back to Dashboard", type="secondary"):
+        if st.button("â¬…ï¸ Back to Dashboard", type="secondary"):
             go_home()
         return
 
@@ -647,6 +677,12 @@ if route == "engagement":
     render_engagement(df)
 else:
     render_dashboard(df)
+
+
+
+
+
+
 
 
 
